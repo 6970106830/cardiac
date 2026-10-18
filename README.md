@@ -20,17 +20,17 @@ The "extract with Claude" button (free text or dictation → form fields) works 
 | Level | Rule |
 |---|---|
 | **Red** | Any red flag (syncope, SBP < 90 or ≥ 200, HR < 50 or > 120, chest pain with ST-T change, positive troponin) **or** model risk ≥ 70 % |
-| **Green** | Model risk below the validated cut-off (13–16 %, sensitivity ≥ 95 % in development) **and** the clinical rule agrees (atypical or non-anginal pain, age < 55) **and** chest pain is the only complaint, with no ECG abnormality |
+| **Green** | Model risk below the validated cut-off (12.7–16.2 %, sensitivity ≥ 95 % in development) **and** the clinical rule agrees (atypical or non-anginal pain, age < 55) **and** chest pain is the only complaint, with no ECG abnormality |
 | **Yellow** | Everything else |
 
-Model: three logistic regressions, picked by the data available. Tier A uses age, sex, chest-pain type and SBP; tier B adds the resting ECG; tier C adds cholesterol and FBS. All three were trained on 227 Cleveland patients and give AUROC ≈ 0.84 in CV, 0.83–0.84 on the sealed test set and 0.83–0.84 in Hungary (external). Risk drivers are linear SHAP values, which are exact for logistic regression on the log-odds scale.
+Model: three logistic regressions, picked by the data available. Tier A uses age, sex, chest-pain type and SBP; tier B adds the resting ECG (normal vs abnormal; ST-T and LVH are merged because only one training patient had ST-T); tier C adds cholesterol and FBS. All three were trained on 227 Cleveland patients and give AUROC ≈ 0.84 in CV, 0.84 on the sealed test set and 0.82–0.83 in Hungary (external), with calibration slope 0.88–0.99 on the test set. Risk drivers are linear SHAP values, which are exact for logistic regression on the log-odds scale.
 
 ## Known limitations
 
 - The label is ≥ 50 % stenosis on angiography in patients **already referred** for it (UCI, 1980s). It is not an ACS label, so red is decided by clinical red-flag rules first.
 - Referral bias: "no chest pain" (cp = 4) carries a high CAD rate in the training data, and typical angina a lower one. The tool warns about this, and red-flag rules catch typical angina with ECG changes.
-- A 35 % green cut-off would drop sensitivity to 0.73–0.80 in Hungary, so the tool uses the validated cut-off plus the clinical rule (sensitivity 0.94 in Hungary).
-- ST-T abnormality appears in only 1 training patient, so it is handled as a rule, not by the model.
+- A 35 % green cut-off would drop sensitivity to 0.80 in Hungary (tier A), so the tool uses the validated cut-off plus the clinical rule (sensitivity 0.94 in Hungary).
+- ST-T abnormality appears in only 1 training patient, so the model merges it with LVH as "abnormal ECG", and chest pain with ST-T change stays a red-flag rule.
 - The model fails to transfer to sicker populations (VA 74 %, Switzerland 93 % CAD). It would need local validation before any use.
 - Differential diagnoses are a rule-based list by presenting complaint and do not come from the model.
 
