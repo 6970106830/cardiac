@@ -1,0 +1,483 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Cardiac Triage Copilot</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Source+Serif+4:opsz,wght@8..60,600&display=swap">
+<style>
+/* Layout: nurse console. Row 1 = hospital profile. Row 2 = intake (left) + live triage (right). Row 3 = A4 sign-off sheet. */
+:root{
+  --bg:#F3F5F7; --panel:#FFFFFF; --ink:#152238; --muted:#56627A; --line:#D6DCE4; --field:#F7F9FB;
+  --accent:#2A6FC9; --accent-soft:#E4EEFA;
+  --red:#B42318; --red-soft:#FDE8E6; --yellow:#8A5A00; --yellow-soft:#FFF3D1; --green:#0B7A5A; --green-soft:#DFF3EC;
+  --paper:#FFFFFF; --paper-ink:#111827;
+  --f-body:'IBM Plex Sans Thai','IBM Plex Sans','Leelawadee UI',Tahoma,sans-serif;
+  --f-mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+  --f-display:'Source Serif 4',Georgia,serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0E1622; --panel:#162131; --ink:#E7ECF3; --muted:#A2AEC1; --line:#2A3A51; --field:#1B2839;
+  --accent:#62A2F0; --accent-soft:#1B3150;
+  --red:#FF8A7A; --red-soft:#47201C; --yellow:#F0C04A; --yellow-soft:#3B3013; --green:#4CD3A6; --green-soft:#123A30;
+  --paper:#FFFFFF; --paper-ink:#111827; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0E1622; --panel:#162131; --ink:#E7ECF3; --muted:#A2AEC1; --line:#2A3A51; --field:#1B2839;
+  --accent:#62A2F0; --accent-soft:#1B3150;
+  --red:#FF8A7A; --red-soft:#47201C; --yellow:#F0C04A; --yellow-soft:#3B3013; --green:#4CD3A6; --green-soft:#123A30;
+  --paper:#FFFFFF; --paper-ink:#111827; color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:18px 48px}
+.wrap{max-width:1240px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+h1{font-family:var(--f-display);font-size:clamp(26px,3.6vw,36px);line-height:1.1;margin:0;font-weight:600;text-wrap:balance}
+h2{font-size:18px;margin:0;font-weight:600}
+h3{font-size:15px;margin:0;font-weight:600}
+p{margin:0}
+.eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.sub{color:var(--muted);max-width:80ch;margin-top:6px}
+.note{background:var(--yellow-soft);border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:14px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;min-width:0}
+.ph{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.step{font-family:var(--f-mono);font-size:12px;color:var(--accent);font-weight:500}
+.grid2{display:grid;grid-template-columns:minmax(0,6fr) minmax(0,5fr);gap:16px;align-items:start}
+@media (max-width:900px){.grid2{grid-template-columns:minmax(0,1fr)}}
+.fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.f{display:flex;flex-direction:column;gap:4px;min-width:0}
+.f label,.f .lb{font-size:13px;font-weight:500;color:var(--muted)}
+input[type=text],input[type=number],select,textarea{font:inherit;color:var(--ink);background:var(--field);border:1px solid var(--line);border-radius:8px;padding:7px 9px;width:100%;min-width:0}
+input[type=number]{font-family:var(--f-mono)}
+textarea{min-height:92px;resize:vertical}
+.inunit{display:flex;gap:6px}.inunit select{width:auto;flex:none}
+.bad{border-color:var(--red)!important;background:var(--red-soft)!important}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg button,.chip{font:inherit;font-size:14px;padding:6px 11px;border-radius:8px;border:1px solid var(--line);background:var(--field);color:var(--ink);cursor:pointer}
+.seg button[aria-pressed="true"],.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.caps{display:flex;flex-wrap:wrap;gap:6px}
+.group{border-top:1px solid var(--line);padding-top:12px;margin-top:12px;display:flex;flex-direction:column;gap:10px}
+.btn{font:inherit;font-weight:600;padding:9px 14px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--accent)}
+.btn:disabled{opacity:.55;cursor:default}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.small{font-size:13px;color:var(--muted)}
+.alerts{display:flex;flex-direction:column;gap:6px}
+.al{display:flex;gap:8px;align-items:flex-start;font-size:14px;padding:7px 10px;border-radius:8px}
+.al.r{background:var(--red-soft)} .al.y{background:var(--yellow-soft)} .al.ok{background:var(--green-soft)}
+.al b{white-space:nowrap}
+.al.r b{color:var(--red)} .al.y b{color:var(--yellow)} .al.ok b{color:var(--green)}
+.banner{border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:6px;border:2px solid}
+.banner.RED{background:var(--red-soft);border-color:var(--red)} .banner.YELLOW{background:var(--yellow-soft);border-color:var(--yellow)} .banner.GREEN{background:var(--green-soft);border-color:var(--green)} .banner.NONE{background:var(--field);border-color:var(--line)}
+.lvl{font-family:var(--f-display);font-size:28px;font-weight:600;line-height:1.1}
+.RED .lvl{color:var(--red)} .YELLOW .lvl{color:var(--yellow)} .GREEN .lvl{color:var(--green)}
+.kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}
+.kpi{background:var(--field);border:1px solid var(--line);border-radius:10px;padding:10px}
+.kpi b{display:block;font-family:var(--f-mono);font-size:22px;font-weight:500;font-variant-numeric:tabular-nums}
+.list{margin:6px 0 0;padding-left:20px}
+.list li{margin:2px 0}
+.overlay{position:fixed;inset:0;background:rgba(10,16,28,.5);display:flex;align-items:center;justify-content:center;padding:max(16px,env(safe-area-inset-left,0px));z-index:20}
+.modal{background:var(--panel);color:var(--ink);border-radius:14px;max-width:520px;width:100%;padding:20px;border-top:6px solid var(--red);display:flex;flex-direction:column;gap:10px}
+/* A4 sheet: always paper-white, so it reads like the printout in either theme */
+.sheet-wrap{overflow-x:auto}
+.sheet{background:var(--paper);color:var(--paper-ink);width:210mm;max-width:100%;min-height:297mm;margin:0 auto;padding:14mm 14mm 12mm;border-radius:4px;box-shadow:0 2px 14px rgba(0,0,0,.18);font-size:12.5px;line-height:1.45}
+.sheet h4{font-size:13px;margin:10px 0 4px;border-bottom:1px solid #9AA4B2;padding-bottom:2px}
+.sheet table{width:100%;border-collapse:collapse}
+.sheet td{padding:2px 4px;vertical-align:top}
+.sheet .tri{border:2px solid #111;padding:6px 10px;font-weight:600;font-size:15px;margin:6px 0}
+.sheet .box{display:inline-block;width:11px;height:11px;border:1px solid #111;margin-right:6px;vertical-align:-1px}
+.sheet .sig{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:10px}
+.sheet .line{border-bottom:1px dotted #111;height:20px}
+.sheet .foot{margin-top:10px;font-size:10.5px;color:#4B5563}
+footer{color:var(--muted);font-size:13px;max-width:100ch}
+.hidden{display:none!important}
+@page{size:A4;margin:0}
+@media print{body{background:#fff;padding:0}.wrap>*:not(#sheetsec){display:none!important}#sheetsec{border:0;padding:0;background:#fff}#sheetsec>*:not(.sheet-wrap){display:none!important}.sheet{box-shadow:none;margin:0;border-radius:0}.overlay{display:none!important}}
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+<header>
+  <p class="eyebrow">Capstone T2 · UCI Heart Disease · research prototype</p>
+  <h1>Cardiac Triage Copilot</h1>
+  <p class="sub">ผู้ช่วยคัดกรองผู้ป่วยอาการทางหัวใจที่จุดคัดกรอง/ER แบบรู้ทรัพยากรของโรงพยาบาล: เช็กข้อมูลครบไหม → ประเมินระดับ แดง/เหลือง/เขียว → บอกว่าตรวจอะไรได้ที่นี่ อะไรต้องปรึกษาหรือส่งต่อ → ออกใบสรุป A4 ให้แพทย์เวรเซ็น</p>
+</header>
+<div class="note" role="note"><b>ข้อจำกัดสำคัญ:</b> โมเดลทำนาย <i>หลอดเลือดหัวใจตีบ ≥50% จาก angiography</i> ในผู้ป่วยที่ถูกส่งตรวจแล้ว (ข้อมูลปี 1980s) ไม่ใช่ตัวทำนาย ACS. ความเร่งด่วน <b>สีแดงตัดสินด้วยกฎ red flag ทางคลินิกก่อนเสมอ</b> โมเดลเป็นข้อมูลประกอบ · ห้ามใส่ข้อมูลผู้ป่วยจริง · ไม่ใช้รักษาจริง</div>
+
+<!-- STEP 1 -->
+<section class="panel" aria-labelledby="h1p">
+  <div class="ph"><div><span class="step">ขั้นที่ 1</span><h2 id="h1p">โปรไฟล์ความพร้อมของโรงพยาบาล</h2></div>
+    <div class="seg" role="group" aria-label="Hospital presets">
+      <button type="button" data-preset="community">รพ.ชุมชน</button>
+      <button type="button" data-preset="general">รพ.ทั่วไป</button>
+      <button type="button" data-preset="center">รพ.ศูนย์ (มี Cath Lab)</button>
+    </div></div>
+  <div class="fields">
+    <div class="f"><label for="hosp">โรงพยาบาลต้นทาง</label><input type="text" id="hosp" value="รพ.ชุมชนตัวอย่าง"></div>
+    <div class="f"><label for="refc">ศูนย์รับส่งต่อที่ใกล้ที่สุด</label><input type="text" id="refc" value="รพ.ศูนย์ตัวอย่าง"></div>
+    <div class="f"><label for="reft">เวลาเดินทาง (นาที)</label><input type="number" id="reft" value="60" min="0" max="600"></div>
+  </div>
+  <p class="lb small" style="margin-top:12px">เครื่องมือ/แล็บที่พร้อมใช้ตอนนี้</p>
+  <div class="caps" id="caps"></div>
+</section>
+
+<div class="grid2">
+<!-- STEP 2 -->
+<section class="panel" aria-labelledby="h2p">
+  <div class="ph"><div><span class="step">ขั้นที่ 2</span><h2 id="h2p">รับข้อมูลผู้ป่วย</h2></div>
+    <div class="seg" role="group" aria-label="Demo cases">
+      <button type="button" class="chip" data-case="0">เคส 1</button>
+      <button type="button" class="chip" data-case="1">เคส 2</button>
+      <button type="button" class="chip" data-case="2">เคส 3</button>
+      <button type="button" class="chip" data-case="clear">ล้าง</button>
+    </div></div>
+
+  <div class="f"><span class="lb">อาการนำที่เปิดระบบ (เลือกอย่างน้อย 1)</span>
+    <div class="seg" id="trig">
+      <button type="button" data-k="cpain" aria-pressed="false">เจ็บแน่นหน้าอก</button>
+      <button type="button" data-k="syncope" aria-pressed="false">วูบ/หมดสติ</button>
+      <button type="button" data-k="palp" aria-pressed="false">ใจสั่น/เหนื่อยหอบเฉียบพลัน</button>
+    </div></div>
+
+  <div class="group">
+    <div class="fields">
+      <div class="f"><label for="pid">รหัสผู้ป่วย (สมมติ)</label><input type="text" id="pid" value="DEMO-001"></div>
+      <div class="f"><label for="age">อายุ (ปี) *</label><input type="number" id="age" min="18" max="110"></div>
+      <div class="f"><span class="lb">เพศกำเนิด *</span><div class="seg" id="sex"><button type="button" data-v="0" aria-pressed="false">หญิง</button><button type="button" data-v="1" aria-pressed="false">ชาย</button></div></div>
+      <div class="f"><label for="sbp">SBP (mmHg) *</label><input type="number" id="sbp" min="60" max="260"></div>
+      <div class="f"><label for="hr">ชีพจร (bpm) *</label><input type="number" id="hr" min="30" max="220"></div>
+    </div>
+  </div>
+
+  <div class="group" id="painbox">
+    <h3>ลักษณะอาการเจ็บหน้าอก 3 ข้อ (ใช้คำนวณ cp)</h3>
+    <div class="fields" id="pain"></div>
+    <p class="small" id="cpout"></p>
+  </div>
+
+  <div class="group">
+    <h3>ประวัติและผลตรวจข้างเตียง</h3>
+    <div class="fields">
+      <div class="f"><span class="lb">เบาหวาน</span><div class="seg" id="dm"></div></div>
+      <div class="f"><label for="dtx">DTX/FBS</label><div class="inunit"><input type="number" id="dtx" step="0.1"><select id="dtxu" aria-label="glucose unit"><option value="mg">mg/dL</option><option value="mmol">mmol/L</option></select></div></div>
+      <div class="f"><label for="chol">Cholesterol</label><div class="inunit"><input type="number" id="chol" step="0.1"><select id="cholu" aria-label="cholesterol unit"><option value="mg">mg/dL</option><option value="mmol">mmol/L</option></select></div></div>
+      <div class="f"><span class="lb">ความดันสูง</span><div class="seg" id="htn"></div></div>
+      <div class="f"><span class="lb">สูบบุหรี่</span><div class="seg" id="smoke"></div></div>
+      <div class="f"><span class="lb">ประวัติครอบครัวโรคหัวใจ</span><div class="seg" id="famhist"></div></div>
+    </div>
+  </div>
+
+  <div class="group">
+    <h3>ผลตรวจที่ รพ.นี้ทำได้</h3>
+    <div class="fields">
+      <div class="f" id="ecgf"><label for="ecg">12-lead ECG แรกรับ</label><select id="ecg"><option value="">ยังไม่ได้ทำ</option><option value="0">ปกติ</option><option value="1">ST-T ผิดปกติ (ST ยก/กด ≥0.05 mV หรือ T inversion)</option><option value="2">LVH</option></select></div>
+      <div class="f" id="tropf"><label for="trop">Troponin</label><select id="trop"><option value="">ยังไม่ได้ทำ</option><option value="neg">ลบ</option><option value="pos">บวก/สูงกว่าเกณฑ์</option></select></div>
+    </div>
+  </div>
+
+  <div class="group" id="nlpbox">
+    <h3>เล่าอาการด้วยข้อความหรือเสียง</h3>
+    <p class="small">พิมพ์ หรือกดไมค์บนคีย์บอร์ดของมือถือ/แท็บเล็ตเพื่อพูด แล้วให้ Claude แยกเป็นช่องข้อมูล พยาบาลตรวจก่อนกดใช้ทุกครั้ง</p>
+    <textarea id="story" aria-label="Narrative">ผู้ชาย 64 ปี เจ็บแน่นกลางอกร้าวไปแขนซ้าย เป็นตอนเดินขึ้นบันได นั่งพักแล้วดีขึ้น วันนี้วูบไป 1 ครั้ง ความดัน 92/60 ชีพจร 48 เป็นเบาหวาน DTX 9.8 mmol/L สูบบุหรี่</textarea>
+    <div class="row"><button class="btn ghost" id="nlp" type="button">แยกข้อมูลด้วย Claude</button><span class="small" id="nlpmsg" role="status"></span></div>
+    <div id="nlpout" class="alerts"></div>
+  </div>
+</section>
+
+<!-- STEP 3-4 -->
+<section class="panel" aria-labelledby="h3p" aria-live="polite">
+  <div class="ph"><div><span class="step">ขั้นที่ 3–4</span><h2 id="h3p">เช็กข้อมูลและผลคัดกรอง</h2></div><button class="btn" id="run" type="button">ประเมิน</button></div>
+  <div class="alerts" id="alerts"></div>
+  <div id="result" style="margin-top:14px"></div>
+</section>
+</div>
+
+<!-- STEP 5 -->
+<section class="panel" id="sheetsec" aria-labelledby="h5p">
+  <div class="ph"><div><span class="step">ขั้นที่ 5</span><h2 id="h5p">ใบสรุปให้แพทย์เวรตรวจและลงนาม (A4)</h2></div>
+    <div class="row"><button class="btn" id="dl" type="button">ดาวน์โหลดไฟล์สำหรับพิมพ์</button><button class="btn hidden" id="pr" type="button">พิมพ์ใบสรุป (A4)</button><button class="btn ghost" id="cp" type="button">คัดลอกข้อความ</button><span class="small" id="dlmsg" role="status"></span></div></div>
+  <p class="small" style="margin-bottom:10px">กด “พิมพ์ใบสรุป” หรือ Ctrl+P / ⌘P เพื่อพิมพ์ขนาด A4 (ใน claude.ai ให้ดาวน์โหลดไฟล์ก่อน)</p>
+  <div class="sheet-wrap"><div class="sheet" id="sheet"><p style="color:#6B7280">กด “ประเมิน” เพื่อสร้างใบสรุป</p></div></div>
+</section>
+
+<section class="panel" aria-labelledby="hev">
+  <h2 id="hev" style="margin-bottom:8px">ตัวเลขที่อยู่เบื้องหลัง</h2>
+  <div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:14px;width:100%;font-variant-numeric:tabular-nums">
+    <thead><tr><th style="text-align:left;padding:6px">เกณฑ์ “เขียว”</th><th style="text-align:right;padding:6px">Sensitivity (Hungary)</th><th style="text-align:right;padding:6px">ออกเป็นเขียวได้</th><th style="text-align:right;padding:6px">NPV</th></tr></thead>
+    <tbody>
+      <tr style="border-top:1px solid var(--line)"><td style="padding:6px">โมเดล &lt; 35% (ตาม blueprint เดิม)</td><td style="text-align:right;padding:6px">0.73–0.80</td><td style="text-align:right;padding:6px">57–62%</td><td style="text-align:right;padding:6px">0.84–0.87</td></tr>
+      <tr style="border-top:1px solid var(--line)"><td style="padding:6px"><b>โมเดล &lt; จุดตัดที่ validate (13–16%, sens ≥95% ใน dev)</b></td><td style="text-align:right;padding:6px"><b>0.90–0.92</b></td><td style="text-align:right;padding:6px">34–36%</td><td style="text-align:right;padding:6px">0.90–0.91</td></tr>
+      <tr style="border-top:1px solid var(--line)"><td style="padding:6px"><b>+ ต้องผ่านกฎทางคลินิกด้วย (TwoKey)</b></td><td style="text-align:right;padding:6px"><b>0.94</b></td><td style="text-align:right;padding:6px">30%</td><td style="text-align:right;padding:6px">0.93</td></tr>
+    </tbody></table></div>
+  <p class="small" style="margin-top:8px">เราจึงใช้จุดตัดที่ validate แล้วร่วมกับกฎสองกุญแจแทน 35% · สีแดงที่ ≥70% มี PPV 0.81 ใน dev · ECG ST-T ผิดปกติมีแค่ 1 รายในข้อมูลเทรน โมเดลจึงเรียนรู้ไม่ได้ ระบบใช้เป็นกฎ red flag แทน</p>
+</section>
+
+<footer>Logistic regression 3 ระดับตามข้อมูลที่มี: A (อายุ เพศ cp SBP) · B (+ECG) · C (+cholesterol, FBS) เทรนบน Cleveland 227 ราย (UCI Heart Disease, CC BY 4.0) · AUROC CV 0.84, test 0.83–0.84, Hungary 0.83–0.84 · ปัจจัยขับเคลื่อนเป็น linear SHAP (ตรงตัวสำหรับ logistic regression บนสเกล log-odds) · วินิจฉัยแยกโรคเป็นรายการตามกฎจากอาการนำ ไม่ได้มาจากโมเดล · ทำร่วมกับ Claude (Anthropic) กลุ่มตรวจสอบและรับผิดชอบผลทั้งหมด</footer>
+</div>
+
+<div class="overlay hidden" id="ov" role="dialog" aria-modal="true" aria-labelledby="ovt">
+  <div class="modal"><h2 id="ovt">ข้อมูลจำเป็นยังไม่ครบ</h2><ul class="list" id="ovl"></ul>
+  <p class="small">กรอกหรือเล่าเพิ่มในช่องข้อความ แล้วกดประเมินอีกครั้ง</p>
+  <div class="row"><button class="btn" id="ovc" type="button">กลับไปกรอก</button></div></div>
+</div>
+
+<script>
+const MODELS={"A":{"names":["cp_1","cp_2","cp_3","cp_4","age","sex","trestbps"],"coef":[-0.476159,-0.574181,-0.58868,1.644708,0.613991,0.844262,0.163973],"b":-0.810803,"zmean":[0.070485,0.176211,0.268722,0.484581,0,0,0],"num":["age","sex","trestbps"],"mean":[54.660793,0.687225,130.77533],"scale":[8.889652,0.463624,17.162805],"thr":0.1623,"auc":"0.84 (CV) · 0.84 (test) · 0.83 (Hungary)"},
+"B":{"names":["cp_1","cp_2","cp_3","cp_4","restecg_0","restecg_1","restecg_2","age","sex","trestbps"],"coef":[-0.556103,-0.537596,-0.564719,1.661716,-0.232178,-0.194367,0.429843,0.606518,0.850978,0.134904],"b":-0.928883,"zmean":[0.070485,0.176211,0.268722,0.484581,0.502203,0.004405,0.493392,0,0,0],"num":["age","sex","trestbps"],"mean":[54.660793,0.687225,130.77533],"scale":[8.889652,0.463624,17.162805],"thr":0.1288,"auc":"0.84 (CV) · 0.83 (test) · 0.83 (Hungary)"},
+"C":{"names":["cp_1","cp_2","cp_3","cp_4","restecg_0","restecg_1","restecg_2","age","sex","trestbps","chol","fbs"],"coef":[-0.533089,-0.555864,-0.581285,1.669824,-0.244909,-0.146247,0.390742,0.585234,0.917157,0.114387,0.232179,0.012208],"b":-0.914007,"zmean":[0.070485,0.176211,0.268722,0.484581,0.502203,0.004405,0.493392,0,0,0,0,0],"num":["age","sex","trestbps","chol","fbs"],"mean":[54.660793,0.687225,130.77533,250.092511,0.145374],"scale":[8.889652,0.463624,17.162805,53.813721,0.352478],"thr":0.1257,"auc":"0.84 (CV) · 0.83 (test) · 0.84 (Hungary)"}};
+const CAPS=[["ecg","12-Lead ECG"],["dtx","DTX/FBS"],["lipid","Lipid profile"],["trop","Troponin"],["lytes","Electrolytes"],["echo","Echocardiogram"],["stress","Exercise stress test"],["cath","Cath Lab / PCI"]];
+const PRESETS={community:["ecg","dtx","lytes"],general:["ecg","dtx","lipid","trop","lytes","echo"],center:CAPS.map(c=>c[0])};
+const CPN={1:"Typical angina",2:"Atypical angina",3:"Non-anginal pain",4:"ไม่มีเจ็บหน้าอก (asymptomatic / anginal equivalent)"};
+const $=id=>document.getElementById(id);
+const st={caps:new Set(PRESETS.community),trig:new Set(),sex:null,painloc:null,painexer:null,relrest:null,dm:null,htn:null,smoke:null,famhist:null};
+let last=null;
+
+/* ---------- builders ---------- */
+function yn(id,key,labels=["ใช่","ไม่ใช่","ไม่ทราบ"],vals=[1,0,-1]){
+  $(id).innerHTML=labels.map((l,i)=>`<button type="button" data-v="${vals[i]}" aria-pressed="false">${l}</button>`).join("");
+  $(id).querySelectorAll("button").forEach(b=>b.onclick=()=>{st[key]=+b.dataset.v;paint();live();});}
+$("pain").innerHTML=[["painloc","1) เจ็บกลางอก/ใต้กระดูกอก/ร้าวกรามหรือแขนซ้าย"],["painexer","2) กำเริบเมื่อออกแรง"],["relrest","3) ดีขึ้นเมื่อพักหรืออมยาใต้ลิ้น"]].map(([k,l])=>`<div class="f"><span class="lb">${l}</span><div class="seg" id="s_${k}"></div></div>`).join("");
+["painloc","painexer","relrest"].forEach(k=>yn("s_"+k,k,["ใช่","ไม่ใช่"],[1,0]));
+["dm","htn","smoke","famhist"].forEach(k=>yn(k,k));
+$("caps").innerHTML=CAPS.map(([k,l])=>`<button type="button" class="chip" data-cap="${k}" aria-pressed="false">${l}</button>`).join("");
+document.querySelectorAll("[data-cap]").forEach(b=>b.onclick=()=>{const k=b.dataset.cap;st.caps.has(k)?st.caps.delete(k):st.caps.add(k);saveProfile();paint();live();});
+document.querySelectorAll("[data-preset]").forEach(b=>b.onclick=()=>{st.caps=new Set(PRESETS[b.dataset.preset]);
+  if(b.dataset.preset==="center"){$("hosp").value="รพ.ศูนย์ตัวอย่าง";$("refc").value="(รพ.นี้เป็นศูนย์รับส่งต่อ)";$("reft").value=0;}
+  else if(b.dataset.preset==="general"){$("hosp").value="รพ.ทั่วไปตัวอย่าง";$("refc").value="รพ.ศูนย์ตัวอย่าง";$("reft").value=45;}
+  else {$("hosp").value="รพ.ชุมชนตัวอย่าง";$("refc").value="รพ.ศูนย์ตัวอย่าง";$("reft").value=60;}
+  saveProfile();paint();live();});
+document.querySelectorAll("#trig button").forEach(b=>b.onclick=()=>{const k=b.dataset.k;st.trig.has(k)?st.trig.delete(k):st.trig.add(k);paint();live();});
+document.querySelectorAll("#sex button").forEach(b=>b.onclick=()=>{st.sex=+b.dataset.v;paint();live();});
+["age","sbp","hr","dtx","dtxu","chol","cholu","ecg","trop","pid","hosp","refc","reft"].forEach(id=>$(id).addEventListener("input",()=>{if(["hosp","refc","reft"].includes(id))saveProfile();live();}));
+function saveProfile(){try{localStorage.setItem("ctc_profile",JSON.stringify({caps:[...st.caps],hosp:$("hosp").value,refc:$("refc").value,reft:$("reft").value}))}catch(e){}}
+function loadProfile(){try{const p=JSON.parse(localStorage.getItem("ctc_profile")||"null");if(p){st.caps=new Set(p.caps);$("hosp").value=p.hosp;$("refc").value=p.refc;$("reft").value=p.reft;}}catch(e){}}
+
+function paint(){
+  document.querySelectorAll("[data-cap]").forEach(b=>b.setAttribute("aria-pressed",String(st.caps.has(b.dataset.cap))));
+  document.querySelectorAll("#trig button").forEach(b=>b.setAttribute("aria-pressed",String(st.trig.has(b.dataset.k))));
+  document.querySelectorAll("#sex button").forEach(b=>b.setAttribute("aria-pressed",String(st.sex===+b.dataset.v)));
+  ["painloc","painexer","relrest"].forEach(k=>$("s_"+k).querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",String(st[k]===+b.dataset.v))));
+  ["dm","htn","smoke","famhist"].forEach(k=>$(k).querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",String(st[k]===+b.dataset.v))));
+  $("painbox").classList.toggle("hidden",!st.trig.has("cpain"));
+  $("ecgf").classList.toggle("hidden",!st.caps.has("ecg"));
+  $("tropf").classList.toggle("hidden",!st.caps.has("trop"));
+}
+
+/* ---------- data structuring ---------- */
+const num=id=>{const v=$(id).value.trim();return v===""?null:+v};
+function collect(){
+  const d={pid:$("pid").value.trim()||"DEMO",age:num("age"),sex:st.sex,sbp:num("sbp"),hr:num("hr"),trig:[...st.trig],
+    painloc:st.painloc,painexer:st.painexer,relrest:st.relrest,dm:st.dm,htn:st.htn,smoke:st.smoke,famhist:st.famhist,
+    ecg:st.caps.has("ecg")&&$("ecg").value!==""?+$("ecg").value:null, trop:st.caps.has("trop")?($("trop").value||null):null};
+  let g=num("dtx"); if(g!==null&&$("dtxu").value==="mmol") g=Math.round(g*18);
+  let c=num("chol"); if(c!==null&&$("cholu").value==="mmol") c=Math.round(c*38.67);
+  d.glucose=g; d.chol=c;
+  d.fbs = d.dm===1||(g!==null&&g>120)?1:(g!==null||d.dm===0)?0:null;
+  if(st.trig.has("cpain")){const k=[d.painloc,d.painexer,d.relrest];
+    d.pncaden=k.some(x=>x===null)?null:k.reduce((a,b)=>a+b,0);
+    d.cp=d.pncaden===null?null:d.pncaden===3?1:d.pncaden===2?2:3;}
+  else d.cp=st.trig.size?4:null;
+  return d;}
+function checks(d){const R=[],Y=[];
+  if(!d.trig.length) R.push("ระบุอาการนำอย่างน้อย 1 ข้อ");
+  const rng=[["age","อายุ",18,110],["sbp","SBP",60,260],["hr","ชีพจร",30,220]];
+  rng.forEach(([k,l,lo,hi])=>{if(d[k]===null)R.push(`ยังไม่มี${l}`);else if(d[k]<lo||d[k]>hi)R.push(`${l} ${d[k]} อยู่นอกช่วงสรีรวิทยา (${lo}–${hi}) ตรวจซ้ำหรือยืนยันใหม่`);});
+  if(d.sex===null) R.push("ยังไม่ระบุเพศกำเนิด");
+  if(d.trig.includes("cpain")){const m={painloc:"ตำแหน่งเจ็บ/ร้าว",painexer:"กำเริบเมื่อออกแรงไหม",relrest:"ดีขึ้นเมื่อพัก/อมยาไหม"};
+    Object.entries(m).forEach(([k,l])=>{if(d[k]===null)R.push(`อาการเจ็บหน้าอก: ถาม “${l}”`)});}
+  if(d.glucose!==null&&(d.glucose<20||d.glucose>900)) R.push(`ค่าน้ำตาล ${d.glucose} mg/dL ผิดปกติมาก ตรวจหน่วยอีกครั้ง`);
+  if(d.chol!==null&&(d.chol<60||d.chol>700)) R.push(`Cholesterol ${d.chol} mg/dL ผิดปกติมาก ตรวจหน่วยอีกครั้ง`);
+  if(d.dm!==1&&d.glucose===null) Y.push(st.caps.has("dtx")?"ไม่ทราบน้ำตาล: แนะนำเจาะ DTX ข้างเตียง":"ไม่ทราบน้ำตาลและ รพ.ไม่มี DTX");
+  if(st.caps.has("ecg")&&d.ecg===null) Y.push("รพ.มี ECG: ทำและบันทึกผล ECG แรกรับ");
+  if(st.caps.has("lipid")&&d.chol===null) Y.push("มี Lipid profile: เติมค่า cholesterol เพื่อใช้โมเดลระดับ C");
+  if(st.caps.has("trop")&&d.trop===null&&d.trig.includes("cpain")) Y.push("มี Troponin: ส่งตรวจในผู้ป่วยเจ็บหน้าอก");
+  ["htn","smoke","famhist"].forEach(k=>{if(d[k]===null)Y.push({htn:"ถามประวัติความดันสูง",smoke:"ถามการสูบบุหรี่",famhist:"ถามประวัติครอบครัวโรคหัวใจ"}[k])});
+  return {R,Y};}
+function completeness(d){const it=[d.trig.length>0,d.age!==null,d.sex!==null,d.sbp!==null,d.hr!==null,d.fbs!==null,d.htn!==null&&d.htn>=0,d.smoke!==null&&d.smoke>=0,d.famhist!==null&&d.famhist>=0];
+  if(d.trig.includes("cpain")) it.push(d.painloc!==null,d.painexer!==null,d.relrest!==null);
+  if(st.caps.has("ecg")) it.push(d.ecg!==null); if(st.caps.has("lipid")) it.push(d.chol!==null); if(st.caps.has("trop")&&d.trig.includes("cpain")) it.push(d.trop!==null);
+  return Math.round(100*it.filter(Boolean).length/it.length);}
+
+/* ---------- model ---------- */
+const expit=z=>1/(1+Math.exp(-z));
+function predict(d){
+  const tier=(d.ecg!==null&&d.chol!==null&&d.fbs!==null)?"C":(d.ecg!==null?"B":"A"); const M=MODELS[tier];
+  const x={age:d.age,sex:d.sex,trestbps:d.sbp,chol:d.chol,fbs:d.fbs};
+  const z=M.names.map(n=>{if(n.startsWith("cp_"))return +(d.cp===+n.slice(3));if(n.startsWith("restecg_"))return +(d.ecg===+n.slice(8));
+    const i=M.num.indexOf(n);return (x[n]-M.mean[i])/M.scale[i];});
+  const logit=M.b+z.reduce((s,v,i)=>s+v*M.coef[i],0);
+  const shap=M.names.map((n,i)=>({n,v:M.coef[i]*(z[i]-M.zmean[i])}));
+  const agg={};shap.forEach(({n,v})=>{const k=n.split("_")[0];agg[k]=(agg[k]||0)+v;});
+  return {p:expit(logit),tier,M,drivers:Object.entries(agg).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1]))};}
+function driverText(k,v,d){const up=v>0?"เพิ่มความเสี่ยง":"ลดความเสี่ยง";
+  const L={cp:`อาการ: ${CPN[d.cp]} (cp=${d.cp})`,age:`อายุ ${d.age} ปี`,sex:d.sex?"เพศชาย":"เพศหญิง",trestbps:`SBP ${d.sbp} mmHg`,restecg:`ECG: ${["ปกติ","ST-T ผิดปกติ","LVH"][d.ecg]} (restecg=${d.ecg})`,chol:`Cholesterol ${d.chol} mg/dL`,fbs:`FBS ${d.fbs?">120 หรือเป็นเบาหวาน":"≤120"}`};
+  return `${L[k]} — ${up} (${v>0?"+":""}${v.toFixed(2)} log-odds)`;}
+
+/* ---------- triage + resource routing ---------- */
+function triage(d){
+  const pred=predict(d), flags=[], why=[];
+  if(d.trig.includes("syncope")) flags.push("มาด้วยวูบ/หมดสติ: เฝ้าระวังหัวใจเต้นผิดจังหวะ");
+  if(d.sbp<90) flags.push(`ความดันต่ำ SBP ${d.sbp} mmHg`);
+  if(d.sbp>=200) flags.push(`ความดันสูงมาก SBP ${d.sbp} mmHg`);
+  if(d.hr<50) flags.push(`ชีพจรช้า ${d.hr} bpm`);
+  if(d.hr>120) flags.push(`ชีพจรเร็ว ${d.hr} bpm`);
+  if(d.ecg===1&&d.trig.includes("cpain")) flags.push(d.cp===1?"Typical angina ร่วมกับ ST-T ผิดปกติ":"เจ็บหน้าอกร่วมกับ ST-T ผิดปกติ");
+  if(d.trop==="pos") flags.push("Troponin บวก");
+  const ruleOut=(d.cp===2||d.cp===3)&&d.age<55;
+  let level;
+  if(flags.length||pred.p>=0.70){level="RED"; if(pred.p>=0.70) why.push(`โมเดล ${(pred.p*100).toFixed(0)}% (≥70%)`); if(flags.length) why.push("พบ red flag");}
+  else if(pred.p<pred.M.thr&&ruleOut&&d.trig.length===1&&d.trig[0]==="cpain"&&d.ecg!==1&&d.ecg!==2){level="GREEN";why.push(`โมเดล ${(pred.p*100).toFixed(0)}% ต่ำกว่าจุดตัดที่ validate (${(pred.M.thr*100).toFixed(1)}%)`,"กฎทางคลินิกเห็นด้วย: อาการไม่ typical และอายุ < 55","สัญญาณชีพปกติ ไม่มีวูบ");}
+  else {level="YELLOW";
+    if(pred.p>=pred.M.thr) why.push(`โมเดล ${(pred.p*100).toFixed(0)}% อยู่ระหว่างจุดตัด ${(pred.M.thr*100).toFixed(1)}% กับ 70%`);
+    else why.push(`โมเดลต่ำ (${(pred.p*100).toFixed(0)}%) แต่ยังเขียวไม่ได้`);
+    if(!ruleOut&&d.cp!==null) why.push(d.cp===1||d.cp===4?`cp=${d.cp}: กฎทางคลินิกไม่ให้ออกเขียว`:"อายุ ≥ 55: กฎทางคลินิกไม่ให้ออกเขียว");
+    if(d.trig.includes("palp")) why.push("ใจสั่น/เหนื่อยหอบ: โมเดลไม่ได้ validate กับกลุ่มนี้ ให้เหลืองขั้นต่ำ");
+    if(d.ecg===2) why.push("ECG พบ LVH");}
+  const has=k=>st.caps.has(k), center=$("refc").value||"ศูนย์รับส่งต่อ", tmin=$("reft").value;
+  const A=[],B=[],notHere=[];
+  const need=(cap,text,list)=>{if(has(cap))list.push(text);else notHere.push(text);};
+  if(level==="RED"){
+    if(has("ecg")) A.push("12-lead ECG ทันที และทำซ้ำทุก 15–30 นาทีหรือเมื่ออาการเปลี่ยน (serial ECG)");
+    need("trop","Troponin",A); need("dtx","DTX/FBS",A); need("lipid","Lipid profile",A); need("lytes","Electrolytes",A);
+    A.push("ติด monitor สัญญาณชีพต่อเนื่อง เปิดเส้นเลือดดำ");
+    if(has("cath")) B.push("ปรึกษาอายุรแพทย์โรคหัวใจทันที พิจารณาเปิด Cath Lab ตามแนวทางของ รพ.");
+    else B.push(`ส่งต่อด่วนไป ${center} (~${tmin} นาที) เพื่อ Coronary angiography/PCI · โทรประสานก่อนออกเดินทาง`);
+    if(!has("ecg")) B.push("รพ.นี้ไม่มี ECG: ส่งต่อทันที");
+    if(d.trig.includes("syncope")&&!has("echo")) notHere.push("Echocardiogram (หาสาเหตุวูบจากโครงสร้างหัวใจ)");
+  } else if(level==="YELLOW"){
+    need("dtx","DTX/FBS (ถ้ายังไม่มี)",A); need("lipid","Lipid profile",A); need("lytes","Electrolytes",A); need("trop","Troponin (ถ้าเจ็บหน้าอกภายใน 24 ชม.)",A);
+    if(has("ecg")) A.push("ทำ ECG ซ้ำถ้าเจ็บหน้าอกอีกหรืออาการเปลี่ยน");
+    A.push("สังเกตอาการและวัดสัญญาณชีพซ้ำ");
+    if(has("stress")) A.push("นัด Exercise stress test (thalach, exang, oldpeak, slope)"); else notHere.push("Exercise stress test");
+    if(!has("echo")) notHere.push("Echocardiogram");
+    B.push(has("stress")?"ปรึกษาอายุรแพทย์ในวันเดียวกัน":`ปรึกษาอายุรแพทย์/ส่งตรวจ stress test หรือ stress imaging ที่ ${center} ตามระบบส่งต่อ`);
+    if(d.trig.includes("palp")) B.push("ใจสั่น/เหนื่อย: ติด monitor หาจังหวะหัวใจผิดปกติ พิจารณา Holter/ประเมินหัวใจล้มเหลว");
+  } else {
+    need("dtx","DTX/FBS",A); need("lipid","Lipid profile (คัดกรองปัจจัยเสี่ยง)",A);
+    A.push("ประเมินสาเหตุอื่นของอาการเจ็บหน้าอก (กรดไหลย้อน กล้ามเนื้อ/กระดูก)");
+    A.push("ให้คำแนะนำ safety-net: กลับมาทันทีถ้าเจ็บมากขึ้น เจ็บเวลาออกแรง หรือเจ็บขณะพักเกิน 20 นาที · โทร 1669");
+    B.push("ไม่ต้องส่งต่อฉุกเฉิน: นัดติดตามที่ OPD ภายใน 2–4 สัปดาห์");
+  }
+  const dd=[];
+  if(d.trig.includes("cpain")) dd.push(level==="GREEN"?"อาการเจ็บหน้าอกจากสาเหตุนอกหัวใจ (GERD, กล้ามเนื้อ/กระดูก)":"Acute coronary syndrome / unstable angina", level==="GREEN"?"Stable angina (ยังต้องติดตาม)":"Stable coronary artery disease");
+  if(d.trig.includes("syncope")) dd.push("หัวใจเต้นผิดจังหวะ (bradyarrhythmia/tachyarrhythmia)","Vasovagal/orthostatic syncope","โครงสร้างหัวใจผิดปกติ เช่น aortic stenosis");
+  if(d.trig.includes("palp")) dd.push("AF/SVT","หัวใจล้มเหลว","Pulmonary embolism");
+  if(d.trig.includes("cpain")&&level!=="GREEN") dd.push("ห้ามพลาด: aortic dissection, pulmonary embolism");
+  const ddx=[...new Set(dd)].slice(0,3);
+  return {level,pred,flags,why,A,B,notHere,ddx,ruleOut};}
+
+/* ---------- render ---------- */
+const LV={RED:"สีแดง · Emergent",YELLOW:"สีเหลือง · Urgent",GREEN:"สีเขียว · Non-urgent",NONE:"ยังประเมินไม่ได้"};
+function live(){const d=collect(),c=checks(d);
+  $("alerts").innerHTML=(c.R.map(t=>`<div class="al r"><b>ต้องกรอก</b><span>${t}</span></div>`).join("")+c.Y.map(t=>`<div class="al y"><b>แนะนำ</b><span>${t}</span></div>`).join(""))||`<div class="al ok"><b>ครบ</b><span>ข้อมูลครบตาม checklist</span></div>`;
+  [["age",18,110],["sbp",60,260],["hr",30,220]].forEach(([k,lo,hi])=>{const v=d[k];$(k).classList.toggle("bad",v!==null&&(v<lo||v>hi));});
+  $("cpout").textContent=d.trig.includes("cpain")?(d.pncaden===null?"ตอบให้ครบ 3 ข้อเพื่อคำนวณ cp":`pncaden = ${d.pncaden} → cp = ${d.cp} (${CPN[d.cp]})`):"";
+  if(last){last=null;$("result").innerHTML=`<p class="small">ข้อมูลเปลี่ยน กด “ประเมิน” อีกครั้ง</p>`;}
+}
+function run(){const d=collect(),c=checks(d);
+  if(c.R.length){$("ovl").innerHTML=c.R.map(t=>`<li>${t}</li>`).join("");$("ov").classList.remove("hidden");$("ovc").focus();return;}
+  const t=triage(d), comp=completeness(d); last={d,t,comp,time:new Date()};
+  const pct=(t.pred.p*100).toFixed(0);
+  $("result").innerHTML=`<div class="banner ${t.level}"><span class="lvl">${LV[t.level]}</span><span>${t.why.join(" · ")}</span></div>
+  <div class="kpis"><div class="kpi"><span class="small">โอกาสหลอดเลือดตีบ (CAD)</span><b>${pct}%</b></div>
+  <div class="kpi"><span class="small">ข้อมูลครบ</span><b>${comp}%</b></div>
+  <div class="kpi"><span class="small">โมเดลที่ใช้</span><b>${t.pred.tier}</b><span class="small">AUROC ${t.pred.M.auc}</span></div></div>
+  ${t.flags.length?`<div class="al r" style="margin-top:12px"><b>Red flags</b><span>${t.flags.join(" · ")}</span></div>`:""}
+  ${d.cp===4?`<div class="al y" style="margin-top:8px"><b>ระวัง</b><span>ไม่มีเจ็บหน้าอก → cp=4 ซึ่งในข้อมูลเทรนมีอัตรา CAD สูงจาก referral bias ค่าความเสี่ยงอาจสูงเกินจริง</span></div>`:""}
+  <h3 style="margin-top:14px">ปัจจัยขับเคลื่อนความเสี่ยง (SHAP)</h3><ul class="list">${t.pred.drivers.slice(0,4).map(([k,v])=>`<li>${driverText(k,v,d)}</li>`).join("")}</ul>
+  <h3 style="margin-top:12px">A · ทำได้ทันทีที่ ${esc($("hosp").value)}</h3><ul class="list">${t.A.map(x=>`<li>${x}</li>`).join("")}</ul>
+  <h3 style="margin-top:12px">B · ปรึกษา/ส่งต่อ</h3><ul class="list">${t.B.map(x=>`<li>${x}</li>`).join("")}</ul>
+  ${t.notHere.length?`<p class="small" style="margin-top:8px">ทำไม่ได้ที่ รพ.นี้: ${t.notHere.join(", ")}</p>`:""}`;
+  renderSheet();}
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function sheetHTML(){if(!last)return "";const {d,t,comp,time}=last;
+  const yn=v=>v===1?"มี":v===0?"ไม่มี":"ไม่ทราบ", box=x=>`<div><span class="box"></span>${x}</div>`;
+  const ts=time.toLocaleString("th-TH",{dateStyle:"medium",timeStyle:"short"});
+  return `<table><tr><td><b style="font-size:16px">ใบสรุปการคัดกรองผู้ป่วยอาการทางหัวใจ</b><br>Cardiac Triage Summary</td><td style="text-align:right">${esc($("hosp").value)}<br>ส่งต่อ: ${esc($("refc").value)} (~${esc($("reft").value)} นาที)</td></tr></table>
+  <table style="margin-top:6px"><tr><td>รหัส: <b>${esc(d.pid)}</b></td><td>อายุ ${d.age} ปี · ${d.sex?"ชาย":"หญิง"}</td><td>เวลาแรกรับ: ${ts}</td></tr>
+  <tr><td colspan="3">อาการนำ: ${d.trig.map(k=>({cpain:"เจ็บแน่นหน้าอก",syncope:"วูบ/หมดสติ",palp:"ใจสั่น/เหนื่อยหอบ"}[k])).join(", ")} · SBP ${d.sbp} mmHg · HR ${d.hr} bpm</td></tr></table>
+  <div class="tri">ระดับ: ${LV[t.level]} &nbsp;|&nbsp; โอกาส CAD ${(t.pred.p*100).toFixed(0)}% &nbsp;|&nbsp; ข้อมูลครบ ${comp}% &nbsp;|&nbsp; โมเดล ${t.pred.tier}</div>
+  <h4>1. ข้อมูลที่ใช้</h4><table><tr><td>Chest pain: ${d.cp?`cp=${d.cp} ${CPN[d.cp]}`:"-"}${d.pncaden!=null?` (pncaden ${d.pncaden})`:""}</td><td>ECG: ${d.ecg===null?"ไม่ได้ทำ/ไม่มี":["ปกติ","ST-T ผิดปกติ","LVH"][d.ecg]}</td></tr>
+  <tr><td>เบาหวาน: ${yn(d.dm)} · น้ำตาล: ${d.glucose??"-"} mg/dL (fbs=${d.fbs??"-"})</td><td>Cholesterol: ${d.chol??"-"} mg/dL · Troponin: ${d.trop==="pos"?"บวก":d.trop==="neg"?"ลบ":"-"}</td></tr>
+  <tr><td colspan="2">ความดันสูง: ${yn(d.htn)} · สูบบุหรี่: ${yn(d.smoke)} · ครอบครัวเป็นโรคหัวใจ: ${yn(d.famhist)}</td></tr></table>
+  <h4>2. วินิจฉัยแยกโรคเบื้องต้น (ตามอาการนำ) และเหตุผลของ AI</h4><ol style="margin:0;padding-left:18px">${t.ddx.map(x=>`<li>${x}</li>`).join("")}</ol>
+  <p style="margin-top:4px">เหตุผลการจัดระดับ: ${t.why.join(" · ")}</p><p>ปัจจัยหลัก (SHAP): ${t.pred.drivers.slice(0,3).map(([k,v])=>driverText(k,v,d)).join("; ")}</p>
+  <h4>3. Red flags และข้อมูลที่ยังขาด</h4><p>${t.flags.length?t.flags.join(" · "):"ไม่พบ red flag"}</p>${t.notHere.length?`<p>ตรวจไม่ได้ที่ รพ.นี้: ${t.notHere.join(", ")}</p>`:""}
+  <h4>4. แผนการตรวจและการส่งต่อ</h4><p><b>A — ทำได้ทันทีที่ รพ.นี้</b></p>${t.A.map(box).join("")}<p style="margin-top:4px"><b>B — ปรึกษา/ส่งต่อ</b></p>${t.B.map(box).join("")}
+  <h4>5. แพทย์ผู้ตรวจยืนยัน</h4>${box("อนุมัติตามแผนการคัดกรองและการส่งตรวจข้างต้น")}<div><span class="box"></span>แก้ไขคำสั่ง/การส่งต่อเป็น: ...................................................................................</div>
+  <div class="sig"><div>ลงชื่อแพทย์ <div class="line"></div>(.................................................) ตำแหน่ง ..................</div><div>วันที่/เวลา <div class="line"></div></div></div>
+  <p class="foot">สร้างโดย Cardiac Triage Copilot (ต้นแบบงาน capstone, ข้อมูล UCI Heart Disease) · ผลของ AI เป็นข้อมูลประกอบการตัดสินใจ ไม่ใช่คำสั่งการรักษา · แพทย์เป็นผู้ตัดสินขั้นสุดท้าย · ห้ามใช้กับผู้ป่วยจริง</p>`;}
+function renderSheet(){$("sheet").innerHTML=sheetHTML();}
+function sheetText(){return $("sheet").innerText;}
+
+/* ---------- actions ---------- */
+$("run").onclick=run; $("ovc").onclick=()=>$("ov").classList.add("hidden");
+document.addEventListener("keydown",e=>{if(e.key==="Escape")$("ov").classList.add("hidden")});
+$("cp").onclick=()=>{const m=$("dlmsg");if(!last){m.textContent="กดประเมินก่อน";return;}
+  try{navigator.clipboard.writeText(sheetText()).then(()=>m.textContent="คัดลอกแล้ว",()=>m.textContent="คัดลอกไม่ได้ เลือกข้อความในใบสรุปแทน")}catch(e){m.textContent="คัดลอกไม่ได้ เลือกข้อความในใบสรุปแทน"}};
+let downloads=null;
+$("dl").onclick=async()=>{const m=$("dlmsg");if(!last){m.textContent="กดประเมินก่อน";return;}
+  let css="";for(const sh of document.styleSheets){try{css+=[...sh.cssRules].map(r=>r.cssText).filter(t=>t.startsWith(".sheet")).join("\n")}catch(e){}}
+  const html=`<!doctype html><html lang="th"><head><meta charset="utf-8"><title>Triage ${esc(last.d.pid)}</title><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;600&display=swap"><style>body{margin:0;background:#E5E7EB;font-family:'IBM Plex Sans Thai',Tahoma,sans-serif}${css}.sheet{margin:16px auto;box-shadow:none}@page{size:A4;margin:0}@media print{body{background:#fff}.sheet{margin:0;border-radius:0}}</style></head><body><div class="sheet">${sheetHTML()}</div></body></html>`;
+  if(!downloads){m.textContent="ดาวน์โหลดไม่ได้ในมุมมองนี้ ใช้ “คัดลอกข้อความ” แทน";return;}
+  try{await downloads.save({filename:`triage-${last.d.pid.replace(/[^\w-]/g,"")||"summary"}.html`,data:new Blob([html],{type:"text/html"})});m.textContent="บันทึกแล้ว";}
+  catch(e){m.textContent=e&&e.code==="declined"?"ยกเลิกการบันทึก":"บันทึกไม่ได้ ใช้ “คัดลอกข้อความ” แทน";}};
+
+/* ---------- Claude extraction ---------- */
+let sample=null;
+const KEYS=["age","sex","sbp","hr","trig_cpain","trig_syncope","trig_palp","painloc","painexer","relrest","dm","glucose_mg_dl","chol_mg_dl","htn","smoke","famhist","ecg","troponin"];
+$("nlp").onclick=async()=>{const m=$("nlpmsg"),txt=$("story").value.trim();if(!txt){m.textContent="พิมพ์หรือพูดก่อน";return;}
+  if(!sample){m.textContent="ฟีเจอร์นี้ใช้ไม่ได้ในมุมมองนี้ กรอกด้วยปุ่มแทน";return;}
+  $("nlp").disabled=true;m.textContent="กำลังแยกข้อมูล...";
+  const prompt=`You convert a nurse's triage note (Thai or English) into JSON for a cardiac triage form. Use ONLY facts stated in the note; use null when not stated. Never guess.
+Keys and rules:
+age (integer years), sex (1 male, 0 female), sbp (systolic mmHg, from "BP 120/80" take 120), hr (pulse bpm),
+trig_cpain, trig_syncope, trig_palp (true/false: chest pain/tightness; syncope/fainting/วูบ/หมดสติ; palpitation or acute dyspnea),
+painloc (1 if central/substernal or radiating to jaw/left arm, 0 if clearly elsewhere, else null), painexer (1 if provoked by exertion, 0 if clearly not), relrest (1 if relieved by rest or sublingual nitrate, 0 if clearly not),
+dm (1 known diabetes, 0 explicitly no, null unknown), glucose_mg_dl (DTX/FBS converted to mg/dL; mmol/L × 18, round), chol_mg_dl (mmol/L × 38.67, round),
+htn, smoke, famhist (1/0/null), ecg (0 normal, 1 ST-T abnormality, 2 LVH, null not stated), troponin ("pos","neg",null).
+Return only a JSON object with exactly these keys: ${KEYS.join(", ")}.
+Note:
+"""${txt.replace(/"""/g,"")}"""`;
+  try{const j=await sample.json(prompt,{modelTier:"quick"});showExtract(j);m.textContent="ตรวจค่าด้านล่าง แล้วกดใช้";}
+  catch(e){m.textContent=e&&e.code==="not_granted"?"ไม่ได้รับอนุญาตให้ใช้ Claude กรอกด้วยปุ่มแทน":e&&e.code==="rate_limited"?"ใช้งานถี่เกินไป รอสักครู่":"แยกข้อมูลไม่สำเร็จ กรอกด้วยปุ่มแทน";}
+  finally{$("nlp").disabled=false;}};
+function showExtract(j){const shown=KEYS.filter(k=>j&&j[k]!==null&&j[k]!==undefined&&j[k]!==false);
+  $("nlpout").innerHTML=`<div class="al ok" style="flex-direction:column"><span>${shown.map(k=>`<code>${k}</code> = ${esc(j[k])}`).join(" · ")||"ไม่พบข้อมูลที่ใช้ได้"}</span>
+  <div class="row"><button class="btn" id="apply" type="button">ใช้ค่าที่ตรวจแล้ว</button><button class="btn ghost" id="discard" type="button">ทิ้ง</button></div></div>`;
+  $("discard").onclick=()=>$("nlpout").innerHTML="";
+  $("apply").onclick=()=>{const v=k=>j[k]===null||j[k]===undefined?null:j[k];
+    if(v("age")!==null)$("age").value=v("age"); if(v("sbp")!==null)$("sbp").value=v("sbp"); if(v("hr")!==null)$("hr").value=v("hr");
+    if(v("sex")!==null)st.sex=+v("sex");
+    [["trig_cpain","cpain"],["trig_syncope","syncope"],["trig_palp","palp"]].forEach(([a,b])=>{if(j[a]===true)st.trig.add(b)});
+    ["painloc","painexer","relrest"].forEach(k=>{if(v(k)!==null)st[k]=+v(k)});
+    ["dm","htn","smoke","famhist"].forEach(k=>{if(v(k)!==null)st[k]=+v(k)});
+    if(v("glucose_mg_dl")!==null){$("dtx").value=v("glucose_mg_dl");$("dtxu").value="mg";}
+    if(v("chol_mg_dl")!==null){$("chol").value=v("chol_mg_dl");$("cholu").value="mg";}
+    if(v("ecg")!==null&&st.caps.has("ecg"))$("ecg").value=String(v("ecg"));
+    if(v("troponin")&&st.caps.has("trop"))$("trop").value=v("troponin");
+    $("nlpout").innerHTML="";paint();live();};}
+
+/* ---------- demo cases ---------- */
+const CASES=[
+ {preset:"community",pid:"DEMO-001",trig:["cpain","syncope"],age:64,sex:1,sbp:92,hr:48,painloc:1,painexer:1,relrest:1,dm:1,dtx:177,chol:null,htn:1,smoke:1,famhist:-1,ecg:"1",trop:""},
+ {preset:"general",pid:"DEMO-002",trig:["cpain"],age:46,sex:0,sbp:124,hr:82,painloc:0,painexer:1,relrest:1,dm:0,dtx:96,chol:190,htn:0,smoke:0,famhist:0,ecg:"0",trop:"neg"},
+ {preset:"general",pid:"DEMO-003",trig:["cpain"],age:58,sex:1,sbp:150,hr:88,painloc:1,painexer:1,relrest:0,dm:-1,dtx:140,chol:262,htn:1,smoke:1,famhist:1,ecg:"0",trop:"neg"}];
+function setCase(c){document.querySelector(`[data-preset="${c.preset}"]`).click();
+  st.trig=new Set(c.trig);["sex","painloc","painexer","relrest","dm","htn","smoke","famhist"].forEach(k=>st[k]=c[k]);
+  $("pid").value=c.pid;$("age").value=c.age;$("sbp").value=c.sbp;$("hr").value=c.hr;$("dtx").value=c.dtx??"";$("dtxu").value="mg";$("chol").value=c.chol??"";$("cholu").value="mg";$("ecg").value=c.ecg;$("trop").value=c.trop;
+  paint();live();run();}
+document.querySelectorAll("[data-case]").forEach(b=>b.onclick=()=>{const k=b.dataset.case;
+  if(k==="clear"){st.trig=new Set();["sex","painloc","painexer","relrest","dm","htn","smoke","famhist"].forEach(x=>st[x]=null);["age","sbp","hr","dtx","chol"].forEach(x=>$(x).value="");$("ecg").value="";$("trop").value="";$("pid").value="DEMO-004";paint();live();$("result").innerHTML="";$("sheet").innerHTML="";last=null;return;}
+  setCase(CASES[+k]);});
+
+/* ---------- boot ---------- */
+loadProfile(); paint(); setCase(CASES[0]);
+(async()=>{if(!window.claude||!window.claude.use){$("nlp").classList.add("hidden");$("nlpmsg").textContent="การแยกข้อมูลด้วย Claude ใช้ได้เมื่อเปิดใน claude.ai";$("dl").classList.add("hidden");$("pr").classList.remove("hidden");$("pr").onclick=()=>{if(!last){$("dlmsg").textContent="กดประเมินก่อน";return;}window.print();};return;}
+  try{sample=await window.claude.use("sample")}catch(e){} if(!sample){$("nlp").classList.add("hidden");$("nlpmsg").textContent="ฟีเจอร์แยกข้อมูลด้วย Claude ใช้ไม่ได้ในมุมมองนี้";}
+  try{downloads=await window.claude.use("downloads")}catch(e){} if(!downloads)$("dl").classList.add("hidden");})();
+</script>
+
+</body>
+</html>
